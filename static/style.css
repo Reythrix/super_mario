@@ -1,0 +1,74 @@
+body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(to bottom, #0f0f23 0%, #0f0f23 70%, #2d2d44 70%, #2d2d44 100%);
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+#gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#gameCanvas {
+    border: 2px solid #4a4a6a;
+    background: linear-gradient(to bottom, #0f0f23 0%, #0f0f23 70%, #2d2d44 70%, #2d2d44 100%);
+    display: block;
+    margin: 0 auto;
+}
+
+#ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    z-index: 10;
+}
+
+#instructions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: white;
+    font-size: 14px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    z-index: 10;
+    background: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#gameOver {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    display: none;
+    z-index: 20;
+}
+
+button {
+    background: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin: 10px;
+}
+
+button:hover {
+    background: #45a049;
+}
