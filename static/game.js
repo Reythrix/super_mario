@@ -12,6 +12,7 @@ class MarioGame {
             level_height: 600
         };
         this.camera = { x: 0, y: 0 };
+        this.hollowKnightSprite = null;
         
         this.init();
     }
@@ -21,9 +22,22 @@ class MarioGame {
     }
     
     init() {
+        this.loadSprites();
         this.setupWebSocket();
         this.setupEventListeners();
         this.gameLoop();
+    }
+    
+    loadSprites() {
+        // Load Hollow Knight sprite
+        this.hollowKnightSprite = new Image();
+        this.hollowKnightSprite.onload = () => {
+            console.log('Hollow Knight sprite loaded successfully');
+        };
+        this.hollowKnightSprite.onerror = () => {
+            console.log('Failed to load Hollow Knight sprite, using fallback');
+        };
+        this.hollowKnightSprite.src = '/static/HollowKnight48.png';
     }
     
     setupWebSocket() {
@@ -207,39 +221,48 @@ class MarioGame {
             const y = player.y - this.camera.y;
             
             if (x + player.width > 0 && x < this.canvas.width) {
-                // Draw Hollow Knight (The Knight)
-                // Main body (dark blue/black)
-                this.ctx.fillStyle = '#1a1a2e';
-                this.ctx.fillRect(x + 5, y + 10, player.width - 10, player.height - 15);
-                
-                // Head (white mask)
-                this.ctx.fillStyle = '#f5f5f5';
-                this.ctx.fillRect(x + 8, y + 5, player.width - 16, 20);
-                
-                // Eyes (black dots)
-                this.ctx.fillStyle = '#000';
-                if (!player.on_ground) {
-                    // Eyes closed when jumping (horizontal lines)
-                    this.ctx.fillRect(x + 12, y + 12, 6, 2);
-                    this.ctx.fillRect(x + 18, y + 12, 6, 2);
+                // Draw Hollow Knight sprite if loaded, otherwise fallback to pixel art
+                if (this.hollowKnightSprite && this.hollowKnightSprite.complete) {
+                    // Draw the sprite image at original 48x48 size
+                    this.ctx.drawImage(
+                        this.hollowKnightSprite,
+                        x, y, 48, 48
+                    );
                 } else {
-                    // Normal eyes when on ground
-                    this.ctx.fillRect(x + 13, y + 12, 4, 4);
-                    this.ctx.fillRect(x + 19, y + 12, 4, 4);
+                    // Fallback pixel art (scaled to 48x48)
+                    // Main body (dark blue/black)
+                    this.ctx.fillStyle = '#1a1a2e';
+                    this.ctx.fillRect(x + 3, y + 12, 17, 33);
+                    
+                    // Head (white mask)
+                    this.ctx.fillStyle = '#f5f5f5';
+                    this.ctx.fillRect(x + 5, y + 6, 13, 24);
+                    
+                    // Eyes (black dots)
+                    this.ctx.fillStyle = '#000';
+                    if (!player.on_ground) {
+                        // Eyes closed when jumping (horizontal lines)
+                        this.ctx.fillRect(x + 8, y + 14, 4, 2);
+                        this.ctx.fillRect(x + 11, y + 14, 4, 2);
+                    } else {
+                        // Normal eyes when on ground
+                        this.ctx.fillRect(x + 8, y + 14, 3, 3);
+                        this.ctx.fillRect(x + 12, y + 14, 3, 3);
+                    }
+                    
+                    // Horns
+                    this.ctx.fillStyle = '#1a1a2e';
+                    this.ctx.fillRect(x + 6, y + 2, 2, 10);
+                    this.ctx.fillRect(x + 15, y + 2, 2, 10);
+                    
+                    // Cloak/cape
+                    this.ctx.fillStyle = '#16213e';
+                    this.ctx.fillRect(x + 1, y + 18, 21, 27);
+                    
+                    // Nail (sword)
+                    this.ctx.fillStyle = '#c9c9c9';
+                    this.ctx.fillRect(x + 21, y + 24, 2, 18);
                 }
-                
-                // Horns
-                this.ctx.fillStyle = '#1a1a2e';
-                this.ctx.fillRect(x + 10, y + 2, 3, 8);
-                this.ctx.fillRect(x + 23, y + 2, 3, 8);
-                
-                // Cloak/cape
-                this.ctx.fillStyle = '#16213e';
-                this.ctx.fillRect(x + 2, y + 15, player.width - 4, player.height - 20);
-                
-                // Nail (sword)
-                this.ctx.fillStyle = '#c9c9c9';
-                this.ctx.fillRect(x + player.width - 2, y + 20, 3, 15);
                 
                 // Add jump indicator
                 if (!player.on_ground && player.velocity_y < 0) {
@@ -247,11 +270,6 @@ class MarioGame {
                     this.ctx.font = '12px Arial';
                     this.ctx.fillText('DASH!', x - 5, y - 10);
                 }
-                
-                // Draw name
-                this.ctx.fillStyle = '#FFF';
-                this.ctx.font = '12px Arial';
-                this.ctx.fillText(player.name, x, y - 5);
             }
         });
     }
