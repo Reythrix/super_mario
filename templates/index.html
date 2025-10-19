@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 70%, #90EE90 70%, #90EE90 100%);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 70%, #90EE90 70%, #90EE90 100%);
+            display: block;
+            margin: 0 auto;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-size: 14px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1200" height="600"></canvas>
+        
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>Lives: <span id="lives">3</span></div>
+        </div>
+        
+        <div id="instructions">
+            <h3>Controls:</h3>
+            <p>← → Arrow Keys: Move</p>
+            <p><strong>Spacebar: Jump</strong></p>
+            <p>Collect coins for points!</p>
+            <p>Avoid red enemies!</p>
+            <p><em>Press and hold Spacebar to jump!</em></p>
+        </div>
+        
+        <div id="gameOver">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button onclick="restartGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        class MarioGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.ws = null;
+                this.playerId = this.generatePlayerId();
+                this.keys = {};
+                this.gameState = {
+                    players: [],
+                    objects: [],
+                    level_width: 1600,
+                    level_height: 600
+                };
+                this.camera = { x: 0, y: 0 };
+                
+                this.init();
+            }
+            
+            generatePlayerId() {
+                return 'player_' + Math.random().toString(36).substr(2, 9);
+            }
+            
+            init() {
+                this.setupWebSocket();
+                this.setupEventListeners();
+                this.gameLoop();
+            }
+            
+            setupWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/${this.playerId}`;
+                
+                this.ws = new WebSocket(wsUrl);
+                
+                this.ws.onopen = () => {
+                    console.log('Connected to game server');
+                };
+                
+                this.ws.onmessage = (event) => {
+                    this.gameState = JSON.parse(event.data);
+                    this.updateUI();
+                };
+                
+                this.ws.onclose = () => {
+                    console.log('Disconnected from game server');
+                    setTimeout(() => this.setupWebSocket(), 1000);
+                };
+            }
+            
+            setupEventListeners() {
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                    this.handleKeyPress(e.code, true, e);
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                    this.handleKeyPress(e.code, false, e);
+                });
+            }
+            
+            handleKeyPress(keyCode, pressed, e) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+                
+                let action = null;
+                
+                if (pressed) {
+                    switch(keyCode) {
+                        case 'ArrowLeft':
+                            action = 'left';
+                            break;
+                        case 'ArrowRight':
+                            action = 'right';
+                            break;
+                        case 'Space':
+                            action = 'jump';
+                            if (e) e.preventDefault();
+                            console.log('Jump key pressed!'); // Debug log
+                            break;
+                    }
+                } else {
+                    switch(keyCode) {
+                        case 'ArrowLeft':
+                            action = 'stop_left';
+                            break;
+                        case 'ArrowRight':
+                            action = 'stop_right';
+                            break;
+                    }
+                }
+                
+                if (action) {
+                    this.ws.send(JSON.stringify({ action }));
+                    if (action === 'jump') {
+                        console.log('Jump action sent to server!'); // Debug log
+                    }
+                }
+            }
+            
+            updateUI() {
+                const player = this.gameState.players.find(p => p.id === this.playerId);
+                if (player) {
+                    document.getElementById('score').textContent = player.score;
+                    document.getElementById('lives').textContent = player.lives;
+                    
+                    if (player.lives <= 0) {
+                        this.showGameOver(player.score);
+                    }
+                    
+                    // Update camera to follow player
+                    this.camera.x = player.x - this.canvas.width / 2;
+                    this.camera.x = Math.max(0, Math.min(this.camera.x, this.gameState.level_width - this.canvas.width));
+                }
+            }
+            
+            showGameOver(score) {
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('gameOver').style.display = 'block';
+            }
+            
+            restartGame() {
+                document.getElementById('gameOver').style.display = 'none';
+                // The server will reset the player when they reconnect
+                this.setupWebSocket();
+            }
+            
+            draw() {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw background
+                this.ctx.fillStyle = '#87CEEB';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw ground
+                this.ctx.fillStyle = '#90EE90';
+                this.ctx.fillRect(0, this.canvas.height - 50, this.canvas.width, 50);
+                
+                // Draw game objects
+                this.gameState.objects.forEach(obj => {
+                    const x = obj.x - this.camera.x;
+                    const y = obj.y - this.camera.y;
+                    
+                    if (x + obj.width > 0 && x < this.canvas.width) {
+                        this.ctx.fillStyle = obj.color;
+                        this.ctx.fillRect(x, y, obj.width, obj.height);
+                        
+                        // Add some styling
+                        if (obj.type === 'platform') {
+                            this.ctx.strokeStyle = '#654321';
+                            this.ctx.lineWidth = 2;
+                            this.ctx.strokeRect(x, y, obj.width, obj.height);
+                        } else if (obj.type === 'enemy') {
+                            // Draw simple enemy face
+                            this.ctx.fillStyle = '#000';
+                            this.ctx.fillRect(x + 8, y + 8, 4, 4); // Left eye
+                            this.ctx.fillRect(x + 18, y + 8, 4, 4); // Right eye
+                            this.ctx.fillRect(x + 10, y + 18, 10, 2); // Mouth
+                        } else if (obj.type === 'coin') {
+                            // Draw coin with shine
+                            this.ctx.fillStyle = '#FFD700';
+                            this.ctx.beginPath();
+                            this.ctx.arc(x + obj.width/2, y + obj.height/2, obj.width/2, 0, 2 * Math.PI);
+                            this.ctx.fill();
+                            this.ctx.strokeStyle = '#FFA500';
+                            this.ctx.lineWidth = 2;
+                            this.ctx.stroke();
+                        }
+                    }
+                });
+                
+                // Draw players
+                this.gameState.players.forEach(player => {
+                    const x = player.x - this.camera.x;
+                    const y = player.y - this.camera.y;
+                    
+                    if (x + player.width > 0 && x < this.canvas.width) {
+                        // Draw Mario
+                        this.ctx.fillStyle = '#FF0000';
+                        this.ctx.fillRect(x, y, player.width, player.height);
+                        
+                        // Draw Mario's hat
+                        this.ctx.fillStyle = '#8B0000';
+                        this.ctx.fillRect(x + 5, y, player.width - 10, 15);
+                        
+                        // Draw face
+                        this.ctx.fillStyle = '#FFDBAC';
+                        this.ctx.fillRect(x + 8, y + 15, player.width - 16, 15);
+                        
+                        // Draw eyes - different when jumping
+                        this.ctx.fillStyle = '#000';
+                        if (!player.on_ground) {
+                            // Eyes closed when jumping
+                            this.ctx.fillRect(x + 10, y + 18, 8, 2);
+                            this.ctx.fillRect(x + 15, y + 18, 8, 2);
+                        } else {
+                            // Normal eyes when on ground
+                            this.ctx.fillRect(x + 12, y + 18, 3, 3);
+                            this.ctx.fillRect(x + 18, y + 18, 3, 3);
+                        }
+                        
+                        // Draw mustache
+                        this.ctx.fillStyle = '#8B4513';
+                        this.ctx.fillRect(x + 10, y + 22, 10, 3);
+                        
+                        // Draw overalls
+                        this.ctx.fillStyle = '#0000FF';
+                        this.ctx.fillRect(x + 5, y + 30, player.width - 10, 10);
+                        
+                        // Add jump indicator
+                        if (!player.on_ground && player.velocity_y < 0) {
+                            this.ctx.fillStyle = '#FFFF00';
+                            this.ctx.font = '12px Arial';
+                            this.ctx.fillText('JUMP!', x - 5, y - 10);
+                        }
+                        
+                        // Draw name
+                        this.ctx.fillStyle = '#FFF';
+                        this.ctx.font = '12px Arial';
+                        this.ctx.fillText(player.name, x, y - 5);
+                    }
+                });
+            }
+            
+            gameLoop() {
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        // Start the game when page loads
+        window.addEventListener('load', () => {
+            new MarioGame();
+        });
+        
+        function restartGame() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
